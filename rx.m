@@ -1,14 +1,16 @@
 clear all; clc;
 
-OCTAVE = 0;
+OCTAVE = exist('OCTAVE_VERSION', 'builtin') ~= 0; % 1 no Octave, 0 no MATLAB
 
 if OCTAVE == 1
 pkg load communications;
 end
 
 RB = 100; % taxa de bits (bps)
-Fp = 2000; 
+Fp = 2000;
 Fa = 8000;
+
+msg_ref = 'OLA'; % mensagem conhecida enviada pelo tx.m (referencia para a comparacao)
 
 on = 1; % controle se opera ou nao em tempo real
 
@@ -50,8 +52,11 @@ else
 end
 
 % retorna a mensagem em bits e o tamanho dela
-[m,l] = receptor_2(y, RB, Fp, Fa);
+[m,l,quadro_rx] = receptor_2(y, RB, Fp, Fa);
 
+% comparacao com a sequencia conhecida, gerada pelo mesmo transmissor
+[~,~,quadro_tx] = transmissor(msg_ref, RB, Fp, Fa);
+compara_bits(quadro_tx, quadro_rx, 1);
 
 % conversao de bits para texto
 x = bi2de(reshape(m,8,l)')';

@@ -1,13 +1,17 @@
-function [y,msg] = transmissor(msg, RB, Fp, Fa)
+function [y,msg,quadro] = transmissor(msg, RB, Fp, Fa)
 
 %%%%%%%%%%%%%%%%%%%%%%  Entrada do transmissor   %%%%%%%%%%%%%%%%
 %   msg -- Dados a serem transmitidos
 %   RB  -- Taxa de bits
 %   Fp  -- Frequencia da portadora
 %   Fa  -- Frequencia de amostragem da placa de som
+%%%%%%%%%%%%%%%%%%%%%%  Saida do transmissor   %%%%%%%%%%%%%%%%%%
+%   y      -- Sinal modulado (amostras de audio)
+%   msg    -- Quadro completo em bits (PRE | SFD | tamanho | dados | CRC | PRE)
+%   quadro -- Bits protegidos pelo CRC (tamanho | dados | CRC)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-OCTAVE = 0;
+OCTAVE = exist('OCTAVE_VERSION', 'builtin') ~= 0; % 1 no Octave, 0 no MATLAB
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Exemplo de uso
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -24,6 +28,7 @@ OCTAVE = 0;
 %% Pacotes de software
 if OCTAVE == 1
 pkg load communications;
+pkg load signal;
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Inicio
@@ -36,25 +41,23 @@ msg = double(msg);      % converte texto em decimal
 msg = reshape(de2bi([l msg],8)',1,8*(l+1));
 else
 % Garante a conversão para vetor de caracteres (evita o problema das aspas duplas)
-msg_char = char(msg); 
+msg_char = char(msg);
 
 l = length(msg_char);          % Agora l será 3 (correto)
 msg_ascii = double(msg_char);  % Agora retornará [79 76 65] (correto)
 
 % Monta o quadro de bits sem erros
-bits_matriz = de2bi([l msg_ascii], 8)'; 
+bits_matriz = de2bi([l msg_ascii], 8)';
 msg = reshape(bits_matriz, 1, 8*(l+1));
-
-% --- IMPLEMENTAÇÃO DO CRC ---
-% Cria o gerador CRC (Exemplo usando polinômio CRC-16 padrão)
-crcGen = comm.CRCGenerator('Polynomial', 'z^16 + z^15 + z^2 + 1');
-
-% Calcula e anexa o CRC aos dados. 
-% A função step exige um vetor coluna, por isso usamos a transposta (')
-msg = step(crcGen, msg')';
 %msg = [1 0 1 0 0 1 0 1];
 %l = 8;
 end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  CRC-16 (deteccao de erros)                    %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+msg = crc_gen(msg);   % anexa 16 bits de CRC ao [tamanho | dados]
+quadro = msg;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -93,7 +96,7 @@ num = rcosine(RB_f,Fa,'default',r);   % Projeto do filtro RC (raised-cosine filt
 y = rcosflt(y,RB_f,Fa,'filter',num)'; % Filtragem RC
 else % MATLAB
 sps = floor(Fa/RB);
-h = rcosdesign(r, 6, sps);      % Raised cosine FIR filter design 
+h = rcosdesign(r, 6, sps);      % Raised cosine FIR filter design
 %fvtool(h, 'Analysis', 'impulse')   % Visualize the filter
 y = upfirdn(y, h, sps);
 %plot(x)

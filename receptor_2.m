@@ -1,9 +1,14 @@
-function [x,l] = receptor_2(yrx, TB, Fp, Fa)
+function [x,l,quadro,err_crc] = receptor_2(yrx, TB, Fp, Fa)
 %%%%%%%%%%%%%%%%%%%%%%  Entrada do receptor   %%%%%%%%%%%%%%%%
 %   yrx -- sinal de audio capturado
 %   TB  -- Taxa de bits
 %   Fp  -- Frequencia da portadora
 %   Fa  -- Frequencia de amostragem da placa de som
+%%%%%%%%%%%%%%%%%%%%%%  Saida do receptor   %%%%%%%%%%%%%%%%%%%%
+%   x       -- Bits da mensagem (sem tamanho e sem CRC)
+%   l       -- Tamanho da mensagem em bytes
+%   quadro  -- Bits recebidos apos o SFD (tamanho | dados | CRC)
+%   err_crc -- 1 se o CRC acusou erro, 0 se conferiu
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -18,7 +23,11 @@ function [x,l] = receptor_2(yrx, TB, Fp, Fa)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Pacotes de software
-%pkg load signal;
+OCTAVE = exist('OCTAVE_VERSION', 'builtin') ~= 0; % 1 no Octave, 0 no MATLAB
+if OCTAVE == 1
+pkg load signal;
+pkg load communications;
+end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -100,6 +109,7 @@ x = x(b+1:end);
 
 if length(x) < 8
     disp('Erro: Pacote recebido é muito pequeno.');
+    quadro = double(x(:))'; err_crc = 1;
     x = []; l = 0;
     return;
 end
@@ -118,16 +128,14 @@ else
     rx_frame = x(1:total_bits); % Pega exatamente o pacote fechado
 end
 
-% --- VERIFICAÇÃO DO CRC ---
-% Cria o detector usando o mesmo polinômio do transmissor
-crcDet = comm.CRCDetector('Polynomial', 'z^16 + z^15 + z^2 + 1');
+quadro = double(rx_frame(:))';
 
-% A função step exige um vetor coluna, por isso transpomos com '
-[dados_sem_crc, err] = step(crcDet, double(rx_frame(:))); 
-dados_sem_crc = dados_sem_crc'; % Volta para vetor linha
+% --- VERIFICAÇÃO DO CRC ---
+% Mesmo polinômio do transmissor (ver crc_gen.m)
+[dados_sem_crc, err_crc] = crc_check(quadro);
 
 % Alerta de erro
-if err
+if err_crc
     disp('ALERTA: Erro de CRC! A mensagem foi corrompida durante a transmissão.');
 else
     disp('CRC OK: Mensagem recebida com integridade.');

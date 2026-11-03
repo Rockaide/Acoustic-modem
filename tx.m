@@ -4,7 +4,7 @@ RB = 100; % taxa de bits (bps)
 Fp = 2000; % frequencia da portadora
 Fa = 8000; % frequencia ou taxa de amostragem
 
-OCTAVE = 0;
+OCTAVE = exist('OCTAVE_VERSION', 'builtin') ~= 0; % 1 no Octave, 0 no MATLAB
 
 if OCTAVE == 1
   pkg load signal;
